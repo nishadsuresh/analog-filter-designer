@@ -2,7 +2,7 @@
 
 A browser-based tool for placing R/L/C/op-amp components and instantly seeing the Bode plot, pole-zero map, and transient response — a free, zero-install analog-filter teaching tool.
 
-**Status: Phase 3 of 5** (schematic UI).
+**Status: Phase 4 of 5** (live Bode / pole-zero / transient plots).
 
 ## Scope (deliberate)
 
@@ -31,7 +31,7 @@ python3 -m http.server 8000   # from the repo root
 | 1 | Complex MNA AC solver | Matches analytic RC & RLC to <1e-6 | ✅ **~1e-16** (machine precision) |
 | 2 | Reference-filter validation suite | Agreement within tolerance on ≥5 filters | ✅ **6/6 filters, ~1e-15 to 1e-17** (machine precision) |
 | 3 | Schematic UI | Click together an RC low-pass, solver runs | ✅ verified in a real browser, matches analytic RC formula to ~1e-17 |
-| 4 | Live Bode/pole-zero/transient plots | Plots update on value change | — |
+| 4 | Live Bode/pole-zero/transient plots | Plots update on value change | ✅ verified in a real browser — dragging R from 1k to 5k moved the pole from -1000 to exactly -200 rad/s |
 | 5 | Deploy + README | Public link loads and computes a response | — |
 
 ### Phase 3: schematic UI
@@ -43,6 +43,14 @@ Two real bugs caught building this (see [[claude-code-wsl-environment-quirks]] p
 - Canvas 2D's `fillStyle = "currentColor"` rendered near-invisible text against the dark-themed page background. Fixed by giving the canvas its own fixed light background instead of depending on ambient/`prefers-color-scheme` detection.
 
 Both were caught by actually driving the UI in a real browser (via `agent-browser`) rather than trusting that the code "should" work — the automated `tests/test_phase3.js` alone would have passed either way, since it exercises the same netlist-building logic headlessly in Node and never touches the DOM or canvas rendering.
+
+### Phase 4: live Bode / pole-zero / transient plots
+
+Click "Mark output node" then a grid point to choose the plotted output; "Edit value" lets you click a component and drag a slider (or type an exact value) to scale it live — all three plots re-run on every change.
+
+- **Bode plot** (`engine/mna.js`'s `acSweep`, already verified in Phases 1-2) — magnitude (dB) and phase, swept across 4 decades centered on the circuit's characteristic frequency.
+- **Transient step response** (`engine/transient.js`, new) — trapezoidal-integration companion models for C and L (the standard SPICE technique: `Geq=2C/dt` for capacitors, `Geq=dt/(2L)` for inductors, each with a history current source), re-stamped and solved at every timestep. Verified against the analytic RC step response `1-e^(-t/RC)` to <0.04% at several time points.
+- **Pole-zero map** (`engine/pole_zero.js`, new) — an early version built this by solving the MNA system exactly over polynomial-fraction (Rational) matrix entries via Gaussian elimination. That turned out to be numerically fragile in practice: elimination steps produce spurious uncancelled common factors between numerator and denominator, and this project's component values span too wide a dynamic range (pF to mH to kOhm) for a fixed epsilon to safely tell "genuinely zero" from "tiny but real." Fully fixing that needs real polynomial GCD reduction. Replaced with **Levy's method**: fit a rational transfer function to sampled `acSweep` data via linear least squares (frequency-normalized for conditioning), then find the fitted numerator/denominator's roots with a Durand-Kerner solver. This is standard practice in RF/microwave system identification, not a shortcut — and it reuses already-verified code instead of adding a second large piece of fragile machinery. Verified to machine precision against three known cases: RC low-pass's single real pole, a critically-damped Sallen-Key's double real pole, and a series-RLC notch's pair of purely-imaginary zeros (all exact, closed-form results).
 
 ### Phase 2 note: ngspice substitution
 

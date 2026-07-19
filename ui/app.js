@@ -16,6 +16,8 @@ const FG = "#1a1a1a";
 let elements = []; // { type, points: [{x,y}...], value }
 let tool = null;
 let pendingPoints = []; // points clicked so far for the in-progress element
+let outputPoint = null; // {x,y} grid point marked as the plots' output node
+let selectedElement = null; // element currently bound to the value-edit slider
 
 function snap(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
@@ -32,6 +34,8 @@ function pointsNeeded(type) {
   if (type === "GND") return 1;
   if (type === "OPAMP") return 3;
   if (type === "DELETE") return 1;
+  if (type === "OUTPUT") return 1;
+  if (type === "EDIT") return 1;
   return 2; // R, C, L, V, WIRE
 }
 
@@ -96,7 +100,25 @@ canvas.addEventListener("click", (ev) => {
 
   if (tool === "DELETE") {
     const el = findElementNear(p);
-    if (el) elements = elements.filter((e) => e !== el);
+    if (el) {
+      elements = elements.filter((e) => e !== el);
+      if (selectedElement === el) deselectElement();
+    }
+    render();
+    updateAll();
+    return;
+  }
+
+  if (tool === "OUTPUT") {
+    outputPoint = p;
+    render();
+    updateAll();
+    return;
+  }
+
+  if (tool === "EDIT") {
+    const el = findElementNear(p);
+    selectElement(["R", "C", "L", "V"].includes(el && el.type) ? el : null);
     render();
     return;
   }
@@ -108,13 +130,65 @@ canvas.addEventListener("click", (ev) => {
     pendingPoints = [];
   }
   render();
+  updateAll();
+});
+
+const editPanel = document.getElementById("editPanel");
+const editLabel = document.getElementById("editLabel");
+const editSlider = document.getElementById("editSlider");
+const editValue = document.getElementById("editValue");
+
+function selectElement(el) {
+  selectedElement = el;
+  if (!el) {
+    editPanel.style.display = "none";
+    return;
+  }
+  editPanel.style.display = "block";
+  const units = { R: "ohms", C: "farads", L: "henries", V: "volts" }[el.type];
+  editLabel.textContent = `${el.type} (${units})`;
+  editSlider.value = 100;
+  editValue.value = el.value;
+}
+
+function deselectElement() {
+  selectElement(null);
+}
+
+// Slider is a percentage of the value at selection time (10%-500%) --
+// simple, predictable "drag to scale" behavior regardless of the
+// component's absolute magnitude (ohms vs kilohms, pF vs uF, ...).
+let sliderBaseValue = null;
+editSlider.addEventListener("input", () => {
+  if (!selectedElement) return;
+  if (sliderBaseValue === null) sliderBaseValue = selectedElement.value;
+  const pct = parseFloat(editSlider.value);
+  selectedElement.value = sliderBaseValue * (pct / 100);
+  editValue.value = selectedElement.value;
+  render();
+  updateAll();
+});
+editSlider.addEventListener("mousedown", () => { sliderBaseValue = selectedElement ? selectedElement.value : null; });
+editSlider.addEventListener("mouseup", () => { sliderBaseValue = null; });
+
+editValue.addEventListener("input", () => {
+  if (!selectedElement) return;
+  const v = parseFloat(editValue.value);
+  if (Number.isFinite(v)) {
+    selectedElement.value = v;
+    render();
+    updateAll();
+  }
 });
 
 document.getElementById("clearBtn").addEventListener("click", () => {
   elements = [];
   pendingPoints = [];
+  outputPoint = null;
+  deselectElement();
   statusEl.textContent = "Place components, then Solve.";
   render();
+  updateAll();
 });
 
 document.getElementById("demoBtn").addEventListener("click", () => {
@@ -125,7 +199,9 @@ document.getElementById("demoBtn").addEventListener("click", () => {
     { type: "C", points: [{ x: 2, y: 2 }, { x: 2, y: 3 }], value: 1e-6 },
     { type: "GND", points: [{ x: 2, y: 3 }] },
   ];
+  outputPoint = { x: 2, y: 2 };
   render();
+  updateAll();
 });
 
 document.getElementById("solveBtn").addEventListener("click", () => {
@@ -222,11 +298,224 @@ function drawElement(el) {
   }
 }
 
+function drawOutputMarker() {
+  if (!outputPoint) return;
+  const q = px(outputPoint);
+  ctx.beginPath();
+  ctx.arc(q.x, q.y, 9, 0, 2 * Math.PI);
+  ctx.strokeStyle = "#2eaa4a";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = "#2eaa4a";
+  ctx.font = "11px ui-monospace, monospace";
+  ctx.fillText("OUT", q.x + 12, q.y + 4);
+}
+
+function drawSelectionHighlight() {
+  if (!selectedElement) return;
+  ctx.strokeStyle = "#e0a52e";
+  ctx.lineWidth = 4;
+  const [a, b] = selectedElement.points.map(px);
+  if (selectedElement.points.length >= 2) {
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+}
+
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = FG;
+  drawSelectionHighlight();
   for (const el of elements) drawElement(el);
   for (const p of pendingPoints) drawGridPoint(p, true);
+  drawOutputMarker();
+}
+
+// ---------------------------------------------------------------------
+// Live plots: Bode, pole-zero map, transient step response. Re-run after
+// any placement/edit/output-node change so dragging a value updates all
+// three, per Phase 4's acceptance test.
+// ---------------------------------------------------------------------
+
+function clearPlot(canvasEl, message) {
+  const c = canvasEl.getContext("2d");
+  c.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  if (message) {
+    c.fillStyle = "#888";
+    c.font = "12px ui-monospace, monospace";
+    c.fillText(message, 10, canvasEl.height / 2);
+  }
+}
+
+function plotAxes(c, w, h, pad) {
+  c.strokeStyle = "#ccc";
+  c.lineWidth = 1;
+  c.strokeRect(pad, pad, w - 2 * pad, h - 2 * pad);
+}
+
+function drawBode(netlist, outputNode) {
+  const canvasEl = document.getElementById("bodeCanvas");
+  const c = canvasEl.getContext("2d");
+  const w = canvasEl.width, h = canvasEl.height, pad = 30;
+  c.clearRect(0, 0, w, h);
+
+  const w0 = PoleZero.characteristicOmega(netlist);
+  const numPts = 200;
+  const freqsHz = [];
+  for (let i = 0; i < numPts; i++) {
+    const decade = -2 + (4 * i) / (numPts - 1);
+    freqsHz.push((w0 * Math.pow(10, decade)) / (2 * Math.PI));
+  }
+  const sweep = MNA.acSweep(netlist, freqsHz);
+  const mags = sweep.map((s) => 20 * Math.log10(s.voltages[outputNode].abs()));
+  const phases = sweep.map((s) => s.voltages[outputNode].phaseDeg());
+
+  const magMin = Math.min(...mags, -1), magMax = Math.max(...mags, 1);
+  const halfH = h / 2;
+
+  // magnitude (top half)
+  plotAxes(c, w, halfH, pad);
+  c.strokeStyle = "#2b6cb0";
+  c.lineWidth = 1.5;
+  c.beginPath();
+  mags.forEach((m, i) => {
+    const x = pad + ((w - 2 * pad) * i) / (numPts - 1);
+    const y = pad + (halfH - 2 * pad) * (1 - (m - magMin) / (magMax - magMin || 1));
+    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+  });
+  c.stroke();
+  c.fillStyle = "#2b6cb0";
+  c.font = "10px ui-monospace, monospace";
+  c.fillText(`mag (dB): ${magMin.toFixed(1)} to ${magMax.toFixed(1)}`, pad, 12);
+
+  // phase (bottom half)
+  c.save();
+  c.translate(0, halfH);
+  plotAxes(c, w, halfH, pad);
+  c.strokeStyle = "#c0392b";
+  c.beginPath();
+  phases.forEach((ph, i) => {
+    const x = pad + ((w - 2 * pad) * i) / (numPts - 1);
+    const y = pad + (halfH - 2 * pad) * (1 - (ph + 180) / 360);
+    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+  });
+  c.stroke();
+  c.fillStyle = "#c0392b";
+  c.fillText("phase (deg): -180 to 180", pad, 12);
+  c.restore();
+}
+
+function drawPoleZero(netlist, outputNode) {
+  const canvasEl = document.getElementById("pzCanvas");
+  const c = canvasEl.getContext("2d");
+  const w = canvasEl.width, h = canvasEl.height, pad = 30;
+  c.clearRect(0, 0, w, h);
+
+  let poles = [], zeros = [];
+  try {
+    ({ poles, zeros } = PoleZero.poleZeroMap(netlist, outputNode));
+  } catch (e) {
+    c.fillStyle = "#888";
+    c.fillText(`pole-zero fit failed: ${e.message}`, 10, h / 2);
+    return;
+  }
+
+  const allRe = [...poles, ...zeros].map((r) => r.re).concat([0]);
+  const allIm = [...poles, ...zeros].map((r) => r.im).concat([0]);
+  const reMax = Math.max(...allRe.map(Math.abs), 1) * 1.3;
+  const imMax = Math.max(...allIm.map(Math.abs), 1) * 1.3;
+
+  const toXY = (re, im) => ({
+    x: pad + ((w - 2 * pad) * (re + reMax)) / (2 * reMax),
+    y: pad + (h - 2 * pad) * (1 - (im + imMax) / (2 * imMax)),
+  });
+
+  plotAxes(c, w, h, pad);
+  // axes through origin
+  c.strokeStyle = "#ddd";
+  const origin = toXY(0, 0);
+  c.beginPath();
+  c.moveTo(pad, origin.y); c.lineTo(w - pad, origin.y);
+  c.moveTo(origin.x, pad); c.lineTo(origin.x, h - pad);
+  c.stroke();
+
+  c.strokeStyle = "#c0392b";
+  c.lineWidth = 2;
+  poles.forEach((p) => {
+    const { x, y } = toXY(p.re, p.im);
+    c.beginPath();
+    c.moveTo(x - 5, y - 5); c.lineTo(x + 5, y + 5);
+    c.moveTo(x - 5, y + 5); c.lineTo(x + 5, y - 5);
+    c.stroke();
+  });
+  c.strokeStyle = "#2b6cb0";
+  zeros.forEach((z) => {
+    const { x, y } = toXY(z.re, z.im);
+    c.beginPath();
+    c.arc(x, y, 5, 0, 2 * Math.PI);
+    c.stroke();
+  });
+  c.fillStyle = "#888";
+  c.font = "10px ui-monospace, monospace";
+  c.fillText(`x poles (${poles.length})  o zeros (${zeros.length})`, pad, 12);
+}
+
+function drawTransient(netlist, outputNode) {
+  const canvasEl = document.getElementById("transientCanvas");
+  const c = canvasEl.getContext("2d");
+  const w = canvasEl.width, h = canvasEl.height, pad = 30;
+  c.clearRect(0, 0, w, h);
+
+  const w0 = PoleZero.characteristicOmega(netlist);
+  const T = 1 / w0;
+  const dt = T / 200;
+  const tStop = 10 * T;
+  let trace;
+  try {
+    trace = Transient.simulateTransient(netlist, { dt, tStop, inputValue: () => 1 });
+  } catch (e) {
+    c.fillStyle = "#888";
+    c.fillText(`transient sim failed: ${e.message}`, 10, h / 2);
+    return;
+  }
+  const ys = trace.map((pt) => pt.voltages[outputNode]);
+  const yMin = Math.min(...ys, 0), yMax = Math.max(...ys, 0.001);
+
+  plotAxes(c, w, h, pad);
+  c.strokeStyle = "#2eaa4a";
+  c.lineWidth = 1.5;
+  c.beginPath();
+  ys.forEach((y, i) => {
+    const x = pad + ((w - 2 * pad) * i) / (ys.length - 1);
+    const yy = pad + (h - 2 * pad) * (1 - (y - yMin) / (yMax - yMin || 1));
+    i === 0 ? c.moveTo(x, yy) : c.lineTo(x, yy);
+  });
+  c.stroke();
+  c.fillStyle = "#888";
+  c.font = "10px ui-monospace, monospace";
+  c.fillText(`step response, t=0..${tStop.toExponential(2)}s, v=${yMin.toFixed(3)}..${yMax.toFixed(3)}`, pad, 12);
+}
+
+function updateAll() {
+  if (!outputPoint) {
+    clearPlot(document.getElementById("bodeCanvas"), "Mark an output node to see plots.");
+    clearPlot(document.getElementById("pzCanvas"), "");
+    clearPlot(document.getElementById("transientCanvas"), "");
+    return;
+  }
+  try {
+    const { netlist, nodeOf } = Circuit.buildNetlistFromElements(elements);
+    if (netlist.numNodes === 0) return;
+    const outputNode = nodeOf(outputPoint);
+    drawBode(netlist, outputNode);
+    drawPoleZero(netlist, outputNode);
+    drawTransient(netlist, outputNode);
+  } catch (e) {
+    clearPlot(document.getElementById("bodeCanvas"), `Error: ${e.message}`);
+  }
 }
 
 render();
+updateAll();
