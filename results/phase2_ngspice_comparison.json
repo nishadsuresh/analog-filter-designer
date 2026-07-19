@@ -1,0 +1,32 @@
+[
+  {
+    "name": "RC low-pass",
+    "pass": true,
+    "maxErrDb": 0.000002958836244459917
+  },
+  {
+    "name": "RC high-pass",
+    "pass": true,
+    "maxErrDb": 0.0000049975367986121455
+  },
+  {
+    "name": "Series RLC band-pass",
+    "pass": true,
+    "maxErrDb": 0.000010956506101944541
+  },
+  {
+    "name": "Series RLC notch",
+    "pass": true,
+    "maxErrDb": 0.00001775970414286121
+  },
+  {
+    "name": "Sallen-Key low-pass",
+    "pass": true,
+    "maxErrDb": 0.00001557922696671099
+  },
+  {
+    "name": "Sallen-Key high-pass",
+    "pass": true,
+    "maxErrDb": 0.000014488200162254827
+  }
+]

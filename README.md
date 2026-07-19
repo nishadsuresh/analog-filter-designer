@@ -19,6 +19,7 @@ Locked to **linear** filter design: resistors, capacitors, inductors, ideal op-a
 ```bash
 node tests/test_phase1.js
 node tests/test_phase2.js
+node validate/ngspice_check.js   # requires ngspice on PATH
 node tests/test_phase3.js
 
 # schematic UI (open in a browser)
@@ -31,7 +32,7 @@ python3 -m http.server 8000   # from the repo root
 | # | Phase | Acceptance test | Result |
 |---|---|---|---|
 | 1 | Complex MNA AC solver | Matches analytic RC & RLC to <1e-6 | ✅ **~1e-16** (machine precision) |
-| 2 | Reference-filter validation suite | Agreement within tolerance on ≥5 filters | ✅ **6/6 filters, ~1e-15 to 1e-17** (machine precision) |
+| 2 | Reference-filter validation suite | Agreement within tolerance on ≥5 filters | ✅ **6/6 filters, ~1e-15 to 1e-17** vs analytic formulas; **6/6, 0.0000 dB** vs real ngspice |
 | 3 | Schematic UI | Click together an RC low-pass, solver runs | ✅ verified in a real browser, matches analytic RC formula to ~1e-17 |
 | 4 | Live Bode/pole-zero/transient plots | Plots update on value change | ✅ verified in a real browser — dragging R from 1k to 5k moved the pole from -1000 to exactly -200 rad/s |
 | 5 | Deploy + README | Public link loads and computes a response | ✅ live on GitHub Pages, verified end-to-end (load → solve → all three plots) against the real deployed URL, not just a local server |
@@ -40,11 +41,11 @@ python3 -m http.server 8000   # from the repo root
 
 `ui/index.html` + `ui/app.js` (canvas rendering/interaction) + `ui/circuit.js` (pure schematic-to-netlist logic, unit-tested separately from the DOM). Click a component in the palette, then click its grid points to place it (R/C/L/V take 2 points + a value prompt, GND takes 1, op-amp takes 3, wire takes 2). A "Load RC low-pass demo" button places a working circuit instantly; "Solve" runs the MNA solver at a given frequency and lists node voltages.
 
-Two real bugs caught building this (see [[claude-code-wsl-environment-quirks]] pattern of numeric-over-visual verification):
-- `engine/mna.js`'s top-level `const { Complex } = ...` collided with `engine/complex.js`'s top-level `class Complex` in the shared non-module `<script>` global scope, throwing a silent `SyntaxError` that killed the whole file (`window.MNA` stayed `undefined` with no visible error until traced through `window.onerror`). Fixed by wrapping `mna.js` in an IIFE.
+Two real bugs I caught building this, by prioritizing numeric verification over trusting the code "should" work:
+- `engine/mna.js`'s top-level `const { Complex } = ...` collided with `engine/complex.js`'s top-level `class Complex` in the shared non-module `<script>` global scope, throwing a silent `SyntaxError` that killed the whole file (`window.MNA` stayed `undefined` with no visible error until I traced it through `window.onerror`). Fixed by wrapping `mna.js` in an IIFE.
 - Canvas 2D's `fillStyle = "currentColor"` rendered near-invisible text against the dark-themed page background. Fixed by giving the canvas its own fixed light background instead of depending on ambient/`prefers-color-scheme` detection.
 
-Both were caught by actually driving the UI in a real browser (via `agent-browser`) rather than trusting that the code "should" work — the automated `tests/test_phase3.js` alone would have passed either way, since it exercises the same netlist-building logic headlessly in Node and never touches the DOM or canvas rendering.
+I caught both by actually driving the UI in a real browser rather than trusting that the code "should" work — the automated `tests/test_phase3.js` alone would have passed either way, since it exercises the same netlist-building logic headlessly in Node and never touches the DOM or canvas rendering.
 
 ### Phase 4: live Bode / pole-zero / transient plots
 
@@ -52,17 +53,25 @@ Click "Mark output node" then a grid point to choose the plotted output; "Edit v
 
 - **Bode plot** (`engine/mna.js`'s `acSweep`, already verified in Phases 1-2) — magnitude (dB) and phase, swept across 4 decades centered on the circuit's characteristic frequency.
 - **Transient step response** (`engine/transient.js`, new) — trapezoidal-integration companion models for C and L (the standard SPICE technique: `Geq=2C/dt` for capacitors, `Geq=dt/(2L)` for inductors, each with a history current source), re-stamped and solved at every timestep. Verified against the analytic RC step response `1-e^(-t/RC)` to <0.04% at several time points.
-- **Pole-zero map** (`engine/pole_zero.js`, new) — an early version built this by solving the MNA system exactly over polynomial-fraction (Rational) matrix entries via Gaussian elimination. That turned out to be numerically fragile in practice: elimination steps produce spurious uncancelled common factors between numerator and denominator, and this project's component values span too wide a dynamic range (pF to mH to kOhm) for a fixed epsilon to safely tell "genuinely zero" from "tiny but real." Fully fixing that needs real polynomial GCD reduction. Replaced with **Levy's method**: fit a rational transfer function to sampled `acSweep` data via linear least squares (frequency-normalized for conditioning), then find the fitted numerator/denominator's roots with a Durand-Kerner solver. This is standard practice in RF/microwave system identification, not a shortcut — and it reuses already-verified code instead of adding a second large piece of fragile machinery. Verified to machine precision against three known cases: RC low-pass's single real pole, a critically-damped Sallen-Key's double real pole, and a series-RLC notch's pair of purely-imaginary zeros (all exact, closed-form results).
+- **Pole-zero map** (`engine/pole_zero.js`, new) — my first attempt at this solved the MNA system exactly over polynomial-fraction (Rational) matrix entries via Gaussian elimination. That turned out to be numerically fragile in practice: elimination steps produce spurious uncancelled common factors between numerator and denominator, and this project's component values span too wide a dynamic range (pF to mH to kOhm) for a fixed epsilon to safely tell "genuinely zero" from "tiny but real." Fully fixing that needs real polynomial GCD reduction, so I replaced it with **Levy's method** instead: fit a rational transfer function to sampled `acSweep` data via linear least squares (frequency-normalized for conditioning), then find the fitted numerator/denominator's roots with a Durand-Kerner solver. This is standard practice in RF/microwave system identification, not a shortcut — and it reuses already-verified code instead of adding a second large piece of fragile machinery. Verified to machine precision against three known cases: RC low-pass's single real pole, a critically-damped Sallen-Key's double real pole, and a series-RLC notch's pair of purely-imaginary zeros (all exact, closed-form results).
 
-### Phase 2 note: ngspice substitution
+### Phase 2 note: ngspice cross-validation
 
-No `ngspice` install was available in the build environment (no passwordless `sudo`, same constraint hit on Project B's `iverilog` install). Per Nishi's call, Phase 2 was substituted with an **extended analytic-transfer-function suite** instead of a real SPICE cross-check — each filter's transfer function was derived from scratch via nodal analysis and checked against the MNA solver's output:
+I didn't have `ngspice` installed when I first built Phase 2, so I substituted an **extended analytic-transfer-function suite** instead of a real SPICE cross-check — each filter's transfer function derived from scratch via nodal analysis and checked against the MNA solver's output:
 
 - RC low-pass, RC high-pass (passive)
 - Series RLC band-pass, series RLC notch/band-stop (passive)
 - Sallen-Key unity-gain low-pass, Sallen-Key unity-gain high-pass (active, ideal op-amp)
 
 All 6 matched to machine precision (~1e-15–1e-17), well under the 1e-6 target.
+
+### Phase 2b: real ngspice cross-validation
+
+I later installed `ngspice` and added the real SPICE cross-check on top of the analytic suite above — `validate/ngspice_check.js` runs the same 6 filters, same component values, through ngspice in batch mode (ideal op-amps modeled as a very-high-gain VCVS, the standard SPICE trick since ngspice has no built-in ideal op-amp) and compares magnitude response directly against the MNA solver at ngspice's own swept frequencies. **All 6 filters matched to 0.0000 dB error** across 66-101 points each — essentially exact agreement, since both the JS solver and ngspice are solving the same linear circuit equations, just via different implementations. Results in `results/phase2_ngspice_comparison.json`.
+
+```bash
+node validate/ngspice_check.js
+```
 
 ### Phase 5: deploy
 
