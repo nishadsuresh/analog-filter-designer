@@ -2,7 +2,9 @@
 
 A browser-based tool for placing R/L/C/op-amp components and instantly seeing the Bode plot, pole-zero map, and transient response — a free, zero-install analog-filter teaching tool.
 
-**Status: Phase 4 of 5** (live Bode / pole-zero / transient plots).
+**Live: https://nishadsuresh.github.io/analog-filter-designer/ui/index.html**
+
+**Status: Phase 5 of 5 — complete.**
 
 ## Scope (deliberate)
 
@@ -32,7 +34,7 @@ python3 -m http.server 8000   # from the repo root
 | 2 | Reference-filter validation suite | Agreement within tolerance on ≥5 filters | ✅ **6/6 filters, ~1e-15 to 1e-17** (machine precision) |
 | 3 | Schematic UI | Click together an RC low-pass, solver runs | ✅ verified in a real browser, matches analytic RC formula to ~1e-17 |
 | 4 | Live Bode/pole-zero/transient plots | Plots update on value change | ✅ verified in a real browser — dragging R from 1k to 5k moved the pole from -1000 to exactly -200 rad/s |
-| 5 | Deploy + README | Public link loads and computes a response | — |
+| 5 | Deploy + README | Public link loads and computes a response | ✅ live on GitHub Pages, verified end-to-end (load → solve → all three plots) against the real deployed URL, not just a local server |
 
 ### Phase 3: schematic UI
 
@@ -62,6 +64,10 @@ No `ngspice` install was available in the build environment (no passwordless `su
 
 All 6 matched to machine precision (~1e-15–1e-17), well under the 1e-6 target.
 
+### Phase 5: deploy
+
+Deployed via GitHub Pages (source: `main` branch, root folder — no build step needed since the UI is plain HTML/JS with relative script paths). Live at https://nishadsuresh.github.io/analog-filter-designer/ui/index.html, verified against the actual deployed URL (not just a local server): loads, all five engine scripts resolve, the RC low-pass demo solves correctly, and all three plots render.
+
 ## One-line summary
 
-I wrote a Modified-Nodal-Analysis circuit solver, validated it against analytic reference transfer functions, and wrapped it in a browser tool that shows live Bode and pole-zero plots for analog filters.
+I wrote a Modified-Nodal-Analysis circuit solver, validated it against analytic reference transfer functions, and wrapped it in a browser tool that shows live Bode, pole-zero, and transient-response plots for analog filters.
