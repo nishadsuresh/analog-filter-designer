@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Analog Filter Designer</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+  header { padding: 0.75rem 1rem; border-bottom: 1px solid #8884; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  header h1 { font-size: 1.1rem; margin: 0; }
+  main { flex: 1; display: flex; overflow: hidden; }
+  #palette { width: 190px; border-right: 1px solid #8884; padding: 0.75rem; overflow-y: auto; }
+  #palette button { display: block; width: 100%; margin-bottom: 0.4rem; padding: 0.5rem; text-align: left; cursor: pointer; }
+  #palette button.active { outline: 2px solid #4a9eff; font-weight: 600; }
+  #canvasWrap { flex: 1; position: relative; overflow: auto; }
+  /* Fixed light background regardless of theme -- schematic legibility
+     shouldn't depend on ambient dark-mode detection (canvas "currentColor"/
+     matchMedia heuristics proved unreliable across browser contexts). */
+  canvas { display: block; cursor: crosshair; background-color: #fafafa; background-image: repeating-linear-gradient(0deg, transparent 0 39px, #0002 39px 40px), repeating-linear-gradient(90deg, transparent 0 39px, #0002 39px 40px); }
+  #sidebar { width: 320px; border-left: 1px solid #8884; padding: 0.75rem; overflow-y: auto; font-size: 0.85rem; }
+  #sidebar h2 { font-size: 0.95rem; margin: 0.5rem 0 0.25rem; }
+  #status { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.78rem; background: #8881; padding: 0.5rem; border-radius: 4px; }
+  #hint { color: #888; font-size: 0.8rem; }
+  input[type=number] { width: 5rem; }
+  .row { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.3rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Analog Filter Designer</h1>
+  <span id="hint">Click a component, then click its two grid points to place it. WIRE and GND take fewer clicks.</span>
+</header>
+<main>
+  <div id="palette">
+    <button data-tool="R">Resistor (R)</button>
+    <button data-tool="C">Capacitor (C)</button>
+    <button data-tool="L">Inductor (L)</button>
+    <button data-tool="V">Voltage source (V)</button>
+    <button data-tool="OPAMP">Op-amp (3 pts: +,-,out)</button>
+    <button data-tool="WIRE">Wire</button>
+    <button data-tool="GND">Ground</button>
+    <button data-tool="DELETE">Delete (click element)</button>
+    <hr />
+    <button id="demoBtn">Load RC low-pass demo</button>
+    <button id="clearBtn">Clear all</button>
+  </div>
+  <div id="canvasWrap">
+    <canvas id="canvas" width="1400" height="1000"></canvas>
+  </div>
+  <div id="sidebar">
+    <h2>Solve</h2>
+    <div class="row">
+      <label>Frequency (Hz)</label>
+      <input id="freqInput" type="number" value="1000" min="0.001" step="1" />
+      <button id="solveBtn">Solve</button>
+    </div>
+    <div id="status">Place components, then Solve.</div>
+  </div>
+</main>
+<script src="../engine/complex.js"></script>
+<script src="../engine/mna.js"></script>
+<script src="circuit.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

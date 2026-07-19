@@ -2,7 +2,7 @@
 
 A browser-based tool for placing R/L/C/op-amp components and instantly seeing the Bode plot, pole-zero map, and transient response — a free, zero-install analog-filter teaching tool.
 
-**Status: Phase 2 of 5** (reference-filter validation suite).
+**Status: Phase 3 of 5** (schematic UI).
 
 ## Scope (deliberate)
 
@@ -17,6 +17,11 @@ Locked to **linear** filter design: resistors, capacitors, inductors, ideal op-a
 ```bash
 node tests/test_phase1.js
 node tests/test_phase2.js
+node tests/test_phase3.js
+
+# schematic UI (open in a browser)
+python3 -m http.server 8000   # from the repo root
+# then open http://localhost:8000/ui/index.html
 ```
 
 ## Phases
@@ -25,9 +30,19 @@ node tests/test_phase2.js
 |---|---|---|---|
 | 1 | Complex MNA AC solver | Matches analytic RC & RLC to <1e-6 | ✅ **~1e-16** (machine precision) |
 | 2 | Reference-filter validation suite | Agreement within tolerance on ≥5 filters | ✅ **6/6 filters, ~1e-15 to 1e-17** (machine precision) |
-| 3 | Schematic UI | Click together an RC low-pass, solver runs | — |
+| 3 | Schematic UI | Click together an RC low-pass, solver runs | ✅ verified in a real browser, matches analytic RC formula to ~1e-17 |
 | 4 | Live Bode/pole-zero/transient plots | Plots update on value change | — |
 | 5 | Deploy + README | Public link loads and computes a response | — |
+
+### Phase 3: schematic UI
+
+`ui/index.html` + `ui/app.js` (canvas rendering/interaction) + `ui/circuit.js` (pure schematic-to-netlist logic, unit-tested separately from the DOM). Click a component in the palette, then click its grid points to place it (R/C/L/V take 2 points + a value prompt, GND takes 1, op-amp takes 3, wire takes 2). A "Load RC low-pass demo" button places a working circuit instantly; "Solve" runs the MNA solver at a given frequency and lists node voltages.
+
+Two real bugs caught building this (see [[claude-code-wsl-environment-quirks]] pattern of numeric-over-visual verification):
+- `engine/mna.js`'s top-level `const { Complex } = ...` collided with `engine/complex.js`'s top-level `class Complex` in the shared non-module `<script>` global scope, throwing a silent `SyntaxError` that killed the whole file (`window.MNA` stayed `undefined` with no visible error until traced through `window.onerror`). Fixed by wrapping `mna.js` in an IIFE.
+- Canvas 2D's `fillStyle = "currentColor"` rendered near-invisible text against the dark-themed page background. Fixed by giving the canvas its own fixed light background instead of depending on ambient/`prefers-color-scheme` detection.
+
+Both were caught by actually driving the UI in a real browser (via `agent-browser`) rather than trusting that the code "should" work — the automated `tests/test_phase3.js` alone would have passed either way, since it exercises the same netlist-building logic headlessly in Node and never touches the DOM or canvas rendering.
 
 ### Phase 2 note: ngspice substitution
 

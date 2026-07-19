@@ -15,7 +15,14 @@
 // solveAC(netlist, omega) returns an array of node voltages (Complex),
 // indexed 1..N (index 0 unused, ground is implicitly 0V).
 
-const { Complex } = require("./complex");
+// Wrapped in an IIFE so the browser build's `const Complex` binding stays
+// function-scoped -- as a plain (non-module) <script>, a top-level const/class
+// here would collide with complex.js's top-level `class Complex` in the
+// shared global lexical scope and throw a SyntaxError that silently kills
+// the whole file (caught the hard way: window.MNA came out undefined with
+// no visible error until traced through window.onerror).
+(function () {
+const { Complex } = typeof module !== "undefined" ? require("./complex") : window;
 
 function countExtraUnknowns(components) {
   return components.filter((c) => c.type === "V" || c.type === "OPAMP").length;
@@ -134,4 +141,6 @@ function acSweep(netlist, freqsHz) {
   return freqsHz.map((f) => ({ freqHz: f, voltages: solveAC(netlist, 2 * Math.PI * f) }));
 }
 
-module.exports = { solveAC, acSweep, buildSystem, solveComplexLinearSystem };
+if (typeof module !== "undefined") module.exports = { solveAC, acSweep, buildSystem, solveComplexLinearSystem };
+if (typeof window !== "undefined") window.MNA = { solveAC, acSweep, buildSystem, solveComplexLinearSystem };
+})();

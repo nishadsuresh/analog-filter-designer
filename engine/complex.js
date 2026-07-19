@@ -43,4 +43,5 @@ class Complex {
   }
 }
 
-module.exports = { Complex };
+if (typeof module !== "undefined") module.exports = { Complex };
+if (typeof window !== "undefined") window.Complex = Complex;
