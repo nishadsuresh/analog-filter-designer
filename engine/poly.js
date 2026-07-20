@@ -2,6 +2,7 @@
 // (coeffs[i] = coefficient of s^i). Used by engine/pole_zero.js.
 
 function trim(coeffs) {
+  if (coeffs.length === 0) return [0];
   const c = coeffs.slice();
   while (c.length > 1 && Math.abs(c[c.length - 1]) < 1e-10) c.pop();
   return c;

@@ -23,8 +23,17 @@
 (function () {
 const { Complex } = typeof module !== "undefined" ? require("./complex") : window;
 const { acSweep } = typeof module !== "undefined" ? require("./mna") : window.MNA;
-const { trim, polyEval } = typeof module !== "undefined" ? require("./poly") : window.Poly;
+const { trim } = typeof module !== "undefined" ? require("./poly") : window.Poly;
 
+// Known limitation: this counts raw reactive elements as the transfer
+// function's order, which is correct for every topology this tool's UI can
+// currently build (no all-capacitor loops or all-inductor cutsets), but is
+// not true in general -- a topologically degenerate network (e.g. two
+// capacitors in a loop with no resistance between them) has fewer
+// independent energy-storage states than its raw L+C count, and would get
+// fit at the wrong order here with no diagnostic. Fully correct order
+// detection needs topological analysis (tree/co-tree state counting), which
+// is out of scope for this tool's current component palette.
 function countReactiveOrder(netlist) {
   return netlist.components.filter((c) => c.type === "C" || c.type === "L").length;
 }
@@ -54,7 +63,12 @@ function solveReal(Msq, y, n) {
     for (let row = col + 1; row < n; row++) {
       if (Math.abs(A[row][col]) > maxAbs) { maxAbs = Math.abs(A[row][col]); pivot = row; }
     }
-    if (maxAbs < 1e-300) throw new Error("singular normal-equations matrix in transfer-function fit");
+    // The fit happens in normalized sigma-space (characteristicOmega keeps
+    // coefficients O(1)), so a pivot this small reliably means a
+    // rank-deficient system (e.g. a wrong-order fit from
+    // countReactiveOrder's limitation above) rather than a legitimately
+    // small-but-valid one -- 1e-300 only ever caught literal exact zeros.
+    if (maxAbs < 1e-9) throw new Error("singular (or near-singular) normal-equations matrix in transfer-function fit -- likely a wrong-order fit");
     if (pivot !== col) { [A[col], A[pivot]] = [A[pivot], A[col]]; [rhs[col], rhs[pivot]] = [rhs[pivot], rhs[col]]; }
     for (let row = col + 1; row < n; row++) {
       const f = A[row][col] / A[col][col];

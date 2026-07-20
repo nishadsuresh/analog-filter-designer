@@ -509,11 +509,21 @@ function updateAll() {
     const { netlist, nodeOf } = Circuit.buildNetlistFromElements(elements);
     if (netlist.numNodes === 0) return;
     const outputNode = nodeOf(outputPoint);
+    if (outputNode === undefined) {
+      const msg = "Output point isn't part of the circuit -- click on a wire or component terminal.";
+      clearPlot(document.getElementById("bodeCanvas"), msg);
+      clearPlot(document.getElementById("pzCanvas"), "");
+      clearPlot(document.getElementById("transientCanvas"), "");
+      return;
+    }
     drawBode(netlist, outputNode);
     drawPoleZero(netlist, outputNode);
     drawTransient(netlist, outputNode);
   } catch (e) {
-    clearPlot(document.getElementById("bodeCanvas"), `Error: ${e.message}`);
+    const msg = `Error: ${e.message}`;
+    clearPlot(document.getElementById("bodeCanvas"), msg);
+    clearPlot(document.getElementById("pzCanvas"), msg);
+    clearPlot(document.getElementById("transientCanvas"), msg);
   }
 }
 

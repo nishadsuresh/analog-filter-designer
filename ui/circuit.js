@@ -54,9 +54,9 @@ function buildNetlistFromElements(elements) {
       dsu.union(pointKey(el.points[0]), pointKey(el.points[1]));
     } else if (el.type === "GND") {
       dsu.union(pointKey(el.points[0]), GROUND_KEY);
-    } else {
-      for (const p of el.points) dsu.find(pointKey(p)); // register the point
     }
+    // Non-WIRE/GND element points get registered below, in the same pass
+    // that assigns their node ids -- no need to pre-register them here too.
   }
 
   // Assign sequential node ids to every distinct root, ground always = 0.
@@ -86,9 +86,22 @@ function buildNetlistFromElements(elements) {
     }
   }
 
+  // Strict lookup, NOT assign(): a point that was never a terminal of any
+  // placed element (e.g. a user clicking empty grid space to mark an output
+  // node) must not silently get its own brand-new, disconnected node id --
+  // that id wouldn't exist in `netlist`, so `voltages[id]` would be
+  // undefined and crash downstream with a confusing error instead of a
+  // clear "that point isn't part of the circuit" message. Returns undefined
+  // if `p` was never registered.
+  const nodeOf = (p) => {
+    const key = pointKey(p);
+    const root = dsu.find(key);
+    return rootToId.get(root);
+  };
+
   return {
     netlist: { numNodes: nextId - 1, components },
-    nodeOf: (p) => assign(pointKey(p)),
+    nodeOf,
   };
 }
 

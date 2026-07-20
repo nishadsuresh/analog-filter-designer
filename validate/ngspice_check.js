@@ -46,6 +46,14 @@ function runNgspice(netlist, probeNode1, probeNode2) {
     mags.push(parseFloat(parts[2]));
     phases.push(parseFloat(parts[3]));
   }
+  if (freqs.length === 0) {
+    // If ngspice's output format ever changes (or a netlist error slips
+    // through with exit 0), silently returning empty arrays here would make
+    // compare()'s loop run zero iterations, leave maxErr at its initial 0,
+    // and report a false PASS -- exactly the wrong failure mode for a script
+    // whose entire purpose is being a trustworthy second source of truth.
+    throw new Error(`ngspice produced no parseable AC data points (dataStart=${dataStart}); raw output:\n${out}`);
+  }
   return { freqs, mags, phases };
 }
 

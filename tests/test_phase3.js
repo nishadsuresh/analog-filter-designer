@@ -32,9 +32,21 @@ function main() {
 
   console.log(`Built netlist from ${elements.length} clicked elements: numNodes=${netlist.numNodes}, components=${netlist.components.length}`);
 
+  let allPass = true;
+
+  // Regression test: nodeOf must return undefined for a grid point that was
+  // never a terminal of any placed element (e.g. a user clicking empty
+  // canvas space to mark an output node) -- not silently fabricate a new,
+  // disconnected node id. Caught in a quality pass: the old behavior let
+  // ui/app.js's "mark output node" tool crash with a confusing error
+  // instead of a clear message.
+  const unregisteredNode = nodeOf({ x: 99, y: 99 });
+  const nodeOfStatus = unregisteredNode === undefined ? "PASS" : "FAIL";
+  if (nodeOfStatus === "FAIL") allPass = false;
+  console.log(`  ${nodeOfStatus} nodeOf on an unregistered point returns undefined (got: ${unregisteredNode})`);
+
   const outputNode = nodeOf({ x: 0, y: 2 }); // node between R and C = filter output
   const testFreqsHz = [10, 100, 159.155, 1000, 10000];
-  let allPass = true;
   for (const f of testFreqsHz) {
     const omega = 2 * Math.PI * f;
     const voltages = solveAC(netlist, omega);

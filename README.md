@@ -77,6 +77,10 @@ node validate/ngspice_check.js
 
 Deployed via GitHub Pages (source: `main` branch, root folder — no build step needed since the UI is plain HTML/JS with relative script paths). Live at https://nishadsuresh.github.io/analog-filter-designer/ui/index.html, verified against the actual deployed URL (not just a local server): loads, all five engine scripts resolve, the RC low-pass demo solves correctly, and all three plots render.
 
+## Quality pass: a real UI bug caught
+
+Marking an output node on empty grid space (not an actual wire or component terminal) used to crash silently — `ui/circuit.js`'s `nodeOf()` fabricated a brand-new, disconnected node id for any point instead of only resolving real ones, so the solver would then index past the netlist it actually built. The generic error handler only cleared the Bode canvas, leaving the pole-zero and transient plots showing stale, misleading data from whatever was there before. Fixed at the source: `nodeOf()` is now a strict lookup that returns `undefined` for a point that was never an element terminal, and the UI checks for that explicitly with a clear "click on a wire or component terminal" message, clearing all three plots together. Verified live in a real browser (both the broken case now showing the clean message, and the working case still rendering correctly), and locked in with a regression test in `tests/test_phase3.js`.
+
 ## One-line summary
 
 I wrote a Modified-Nodal-Analysis circuit solver, validated it against analytic reference transfer functions, and wrapped it in a browser tool that shows live Bode, pole-zero, and transient-response plots for analog filters.
