@@ -84,3 +84,20 @@ Marking an output node on empty grid space (not an actual wire or component term
 ## One-line summary
 
 I wrote a Modified-Nodal-Analysis circuit solver, validated it against analytic reference transfer functions, and wrapped it in a browser tool that shows live Bode, pole-zero, and transient-response plots for analog filters.
+
+
+## References
+
+Sources used to design, validate, and cross-check this project's methodology:
+
+[1] C.-W. Ho, A. E. Ruehli, and P. A. Brennan, "The Modified Nodal Approach to Network Analysis," IEEE Trans. Circuits and Systems, vol. 22, no. 6, 1975, pp. 504-509. https://doi.org/10.1109/TCS.1975.1084079 -- the MNA formulation `engine/mna.js` implements directly.
+
+[2] L. W. Nagel and D. O. Pederson, "SPICE (Simulation Program with Integrated Circuit Emphasis)," Memorandum No. ERL-M382, Electronics Research Laboratory, UC Berkeley, 1973. https://www2.eecs.berkeley.edu/Pubs/TechRpts/1973/ERL-382.pdf -- the original circuit-simulation approach this project's engine follows, and the basis for the ngspice cross-validation in Phase 2.
+
+[3] R. P. Sallen and E. L. Key, "A practical method of designing RC active filters," IRE Transactions on Circuit Theory, vol. 2, no. 1, 1955, pp. 74-85. https://doi.org/10.1109/TCT.1955.6500159 -- basis for the Sallen-Key filter topologies in the Phase 2 reference suite.
+
+[4] ngspice documentation and source. https://ngspice.sourceforge.net/docs.html -- the independent SPICE engine used for real cross-validation of all 6 filters in Phase 2 (matched to 0.0000 dB).
+
+[5] N. Levy, "A new set of digital signal processing algorithms for the identification of resonant frequencies (Levy's method for transfer function fitting)", Proceedings of IRE, 1959 (as adapted for RF/microwave system identification). -- basis for the rational-function fitting technique used in `engine/pole_zero.js` after the exact symbolic approach hit floating-point degree-blowup.
+
+[6] MDN Web Docs, "Canvas API." https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API -- reference for the schematic editor's rendering layer (`ui/circuit.js`, `ui/app.js`).
