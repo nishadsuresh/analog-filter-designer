@@ -1,0 +1,23 @@
+{
+  "name": "analog-filter-designer",
+  "version": "1.0.0",
+  "description": "Browser-based analog filter design tool: complex-valued MNA solver, Bode/pole-zero/transient analysis, validated against ngspice.",
+  "main": "index.js",
+  "files": [
+    "engine",
+    "ui",
+    "index.js",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node tests/test_phase1.js && node tests/test_phase2.js && node tests/test_phase3.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nishadsuresh/analog-filter-designer.git"
+  },
+  "homepage": "https://nishadsuresh.github.io/analog-filter-designer/ui/index.html",
+  "author": "Nishad Suresh",
+  "license": "MIT"
+}
