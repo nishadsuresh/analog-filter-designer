@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "analog-filter-designer: a browser-based analog filter design and simulation tool"
+type: software
+authors:
+  - family-names: Suresh
+    given-names: Nishad
+version: 1.0.0
+date-released: "2026-07-20"
+repository-code: "https://github.com/nishadsuresh/analog-filter-designer"
+license: MIT
+# DOI: filled in once the Zenodo upload mints the archive's DOI.
+# doi: 10.5281/zenodo.TODO
