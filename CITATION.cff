@@ -9,5 +9,4 @@ version: 1.0.0
 date-released: "2026-07-20"
 repository-code: "https://github.com/nishadsuresh/analog-filter-designer"
 license: MIT
-# DOI: filled in once the Zenodo upload mints the archive's DOI.
-# doi: 10.5281/zenodo.TODO
+doi: 10.5281/zenodo.21693633
