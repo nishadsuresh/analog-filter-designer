@@ -1,6 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: "analog-filter-designer: a browser-based analog filter design and simulation tool"
+abstract: "Self-directed project; topic, scope, and evaluation by the author. Implementation developed with AI assistance (Anthropic's Claude)."
 type: software
 authors:
   - family-names: Suresh

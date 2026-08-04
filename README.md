@@ -10,6 +10,18 @@ This project is a browser-based tool for interactively placing resistor, capacit
 
 **Status:** Phase 5 of 5, complete.
 
+## Development & AI Assistance
+
+This is a self-directed project. I chose the topic, defined the research
+question and scope, made the design decisions, and evaluated the results.
+AI assistance (Anthropic's Claude) was used to structure the implementation
+and write the code. I directed the work and assessed the output; I did not
+write the implementation line by line.
+
+This disclosure was added on 2026-08-03 to accurately describe how the
+project was built.
+
+
 ## 1. Scope
 
 This project is deliberately scoped to linear filter design: resistors, capacitors, inductors, and ideal op-amps. Nonlinear devices (diodes, transistors) were treated as an optional appendix, to be added only if the core scope shipped with time remaining, keeping the project's largest risk (scope creep) under control. Success is defined as numerical correctness against known analytic and reference transfer functions plus a working deployed tool, rather than external adoption.
