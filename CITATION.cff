@@ -6,7 +6,7 @@ type: software
 authors:
   - family-names: Suresh
     given-names: Nishad
-version: 1.0.0
+version: 1.0.1
 date-released: "2026-07-20"
 repository-code: "https://github.com/nishadsuresh/analog-filter-designer"
 license: MIT

@@ -1,6 +1,6 @@
 {
   "name": "analog-filter-designer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Browser-based analog filter design tool: complex-valued MNA solver, Bode/pole-zero/transient analysis, validated against ngspice.",
   "main": "index.js",
   "files": [
